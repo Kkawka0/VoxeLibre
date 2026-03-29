@@ -503,11 +503,13 @@ function mob_class:check_follow()
 					if self:is_at_cliff_or_danger() or self:is_at_water_danger() then
 						self:set_velocity(0)
 						self:set_animation("stand")
+						self._follow_blocked_by_hazard = true
 					else
 						self:set_velocity(self.follow_velocity)
 						if self.walk_chance ~= 0 then
 							self:set_animation("run")
 						end
+						self._follow_blocked_by_hazard = nil
 					end
 				else
 					self:set_velocity(0)

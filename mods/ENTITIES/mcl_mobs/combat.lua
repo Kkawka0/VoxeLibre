@@ -39,6 +39,9 @@ function mob_class:do_attack(object)
 	if self.state == "attack" or self.state == "die" or self.state == "runaway" then
 		return
 	end
+	if not object or object == self.object then
+		return
+	end
 	if object:is_player() and not damage_enabled and not self.force_attack then
 		return
 	end
@@ -825,7 +828,9 @@ function mob_class:on_punch(hitter, tflp, tool_capabilities, dir)
 
 				-- have owned mobs attack player threat
 				if obj.owner == name and obj.owner_loyal and obj.order ~= "sit" then
-					obj:do_attack(self.object)
+					if obj.object ~= self.object and self.owner ~= name then
+						obj:do_attack(self.object)
+					end
 				end
 			end
 		end
@@ -917,8 +922,12 @@ minetest.register_on_punchplayer(function(player, hitter, time_from_last_punch, 
 	for _, obj in ipairs(objs) do
 		local ent = obj:get_luaentity()
 		if ent and ent.is_mob and ent.owner == name and ent.owner_loyal and ent.order ~= "sit" then
-			if actual_hitter and actual_hitter ~= obj then
-				ent:do_attack(actual_hitter)
+			if actual_hitter and actual_hitter ~= obj:get_luaentity().object then
+				-- PR #13 guard: don't defend against another pet with the same owner
+				local hitter_le = actual_hitter.get_luaentity and actual_hitter:get_luaentity()
+				if not (hitter_le and hitter_le.owner == name) then
+					ent:do_attack(actual_hitter)
+				end
 			end
 		end
 	end
