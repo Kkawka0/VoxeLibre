@@ -6,8 +6,9 @@ local pr = PseudoRandom(os.time()*10)
 
 local update_tail = function(self)
 	if not self.object or not self.object:get_pos() then return end
-	local max_hp = self.initial_properties.hp_max
-	local ratio = self.health / max_hp
+	local max_hp = self.initial_properties and self.initial_properties.hp_max or 1
+	if max_hp <= 0 then max_hp = 1 end
+	local ratio = math.min(1, math.max(0, self.health / max_hp))
 	-- Tail angle: -0.7 radians (up, healthy) to 0.7 radians (down, hurt)
 	local pitch = 0.7 - (ratio * 1.4)
 	mcl_util.set_bone_position(self.object, "tail", nil, vector.new(pitch, 0, 0))
@@ -85,7 +86,9 @@ local wolf = {
 				ent:set_animation("sit")
 				ent.walk_chance = 0
 				ent.jump = false
-				ent.health = math.max(1, math.floor((self.health / 8) * 20 + 0.5))
+				local wolf_max = self.initial_properties.hp_max
+				local dog_max = ent.initial_properties.hp_max
+				ent.health = math.max(1, math.floor((self.health / wolf_max) * dog_max + 0.5))
 				update_tail(ent)
 				-- cornfirm taming
 				minetest.sound_play("mobs_mc_wolf_bark", {object=dog, max_hear_distance=16}, true)
