@@ -80,7 +80,8 @@ function mob_class:smart_mobs(s, p, dist, dtime)
 		if self.path.los_switcher == false then
 			self.path.los_switcher = true
 			use_pathfind = false
-			minetest.after(1, function(self)
+			local delay = self.owner_loyal and 0.1 or 1
+			minetest.after(delay, function(self)
 				if not self.object:get_luaentity() then return end
 				if has_lineofsight then self.path.following = false end
 			end, self)
@@ -90,7 +91,8 @@ function mob_class:smart_mobs(s, p, dist, dtime)
 	if (self.path.stuck_timer > stuck_timeout and not self.path.following) then
 		use_pathfind = true
 		self.path.stuck_timer = 0
-		minetest.after(1, function(self)
+		local delay = self.owner_loyal and 0.1 or 1
+		minetest.after(delay, function(self)
 			if not self.object:get_luaentity() then return end
 			if has_lineofsight then self.path.following = false end
 		end, self)
@@ -99,7 +101,8 @@ function mob_class:smart_mobs(s, p, dist, dtime)
 	if (self.path.stuck_timer > stuck_path_timeout and self.path.following) then
 		use_pathfind = true
 		self.path.stuck_timer = 0
-		minetest.after(1, function(self)
+		local delay = self.owner_loyal and 0.1 or 1
+		minetest.after(delay, function(self)
 			if not self.object:get_luaentity() then return end
 			if has_lineofsight then self.path.following = false end
 		end, self)
@@ -772,18 +775,23 @@ function mob_class:on_punch(hitter, tflp, tool_capabilities, dir)
 		end
 	end
 
-	local name = hitter:get_player_name() or ""
+	local hitter_le = hitter:get_luaentity()
+	local actual_hitter = (hitter_le and (hitter_le._shooter or hitter_le._source_object or hitter_le._owner)) or hitter
+	if type(actual_hitter) == "string" then
+		actual_hitter = core.get_player_by_name(actual_hitter)
+	end
+	local name = (actual_hitter and actual_hitter:is_player() and actual_hitter:get_player_name()) or ""
 
 	-- attack puncher
 	if self.passive == false
 	and self.state ~= "flop"
 	and (self.child == false or self.type == "monster")
-	and hitter:get_player_name() ~= self.owner
+	and name ~= self.owner
 	and not mcl_mobs.invis[ name ] then
 		if not die then
 			-- attack whoever punched mob
 			self.state = ""
-			self:do_attack(hitter)
+			self:do_attack(actual_hitter or hitter)
 			self._aggro= true
 		end
 	end
@@ -816,7 +824,7 @@ function mob_class:on_punch(hitter, tflp, tool_capabilities, dir)
 				end
 
 				-- have owned mobs attack player threat
-				if obj.owner == name and obj.owner_loyal then
+				if obj.owner == name and obj.owner_loyal and obj.order ~= "sit" then
 					obj:do_attack(self.object)
 				end
 			end
@@ -891,6 +899,30 @@ function mob_class:fuse_reset()
 	self.blinkstatus = false
 	self:remove_texture_mod("^[brighten")
 end
+
+minetest.register_on_punchplayer(function(player, hitter, time_from_last_punch, tool_capabilities, dir, damage)
+	if not player or not hitter then return end
+	local name = player:get_player_name()
+	local pos = player:get_pos()
+	if not pos then return end
+
+	local hitter_le = hitter:get_luaentity()
+	local actual_hitter = (hitter_le and (hitter_le._shooter or hitter_le._source_object or hitter_le._owner)) or hitter
+	if type(actual_hitter) == "string" then
+		actual_hitter = core.get_player_by_name(actual_hitter)
+	end
+
+	-- Alert nearby loyal pets to defend their owner
+	local objs = minetest.get_objects_inside_radius(pos, 16) -- Assume standard view range for pets
+	for _, obj in ipairs(objs) do
+		local ent = obj:get_luaentity()
+		if ent and ent.is_mob and ent.owner == name and ent.owner_loyal and ent.order ~= "sit" then
+			if actual_hitter and actual_hitter ~= obj then
+				ent:do_attack(actual_hitter)
+			end
+		end
+	end
+end)
 
 function mob_class:do_states_attack(dtime)
 	self.timer = self.timer + dtime

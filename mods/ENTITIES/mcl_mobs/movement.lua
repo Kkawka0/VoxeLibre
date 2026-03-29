@@ -500,9 +500,14 @@ function mob_class:check_follow()
 				-- anyone but standing npc's can move along
 				local dist = vector_distance(p, s)
 				if dist > 3 and self.order ~= "stand" then
-					self:set_velocity(self.follow_velocity)
-					if self.walk_chance ~= 0 then
-						self:set_animation("run")
+					if self:is_at_cliff_or_danger() or self:is_at_water_danger() then
+						self:set_velocity(0)
+						self:set_animation("stand")
+					else
+						self:set_velocity(self.follow_velocity)
+						if self.walk_chance ~= 0 then
+							self:set_animation("run")
+						end
 					end
 				else
 					self:set_velocity(0)
