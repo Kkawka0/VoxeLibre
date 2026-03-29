@@ -52,6 +52,11 @@ end
 
 -- Hotbar swap logic (Minetest 5.8.0+)
 minetest.register_on_player_receive_fields(function(player, formname, fields)
+	-- Only allow in the player's main inventory formspec
+	if formname ~= "" and formname ~= "main" then
+		return
+	end
+
 	local key = nil
 	for f, _ in pairs(fields) do
 		local k = f:match("^key_(%d)$")
@@ -67,6 +72,11 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		return
 	end
 
+	-- Safety: Ensure hovered list and index are present and numeric
+	if not (fields.hovered_list and fields.hovered_index and tonumber(fields.hovered_index)) then
+		return
+	end
+
 	-- Only allow swapping within the "main" inventory list
 	if fields.hovered_list ~= "main" then
 		return
@@ -74,7 +84,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 
 	local hovered_index = tonumber(fields.hovered_index) + 1
 	-- Only allow swapping with items outside the hotbar (slots 10 to 36)
-	if hovered_index < 10 or hovered_index > 36 then
+	if not (hovered_index and hovered_index >= 10 and hovered_index <= 36) then
 		return
 	end
 
