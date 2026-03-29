@@ -45,7 +45,6 @@ mobs_mc.make_owner_teleport_function = function(dist, teleport_check_interval)
 			local owner_pos = owner:get_pos()
 			local dist_from_owner = vector.distance(owner_pos, mob_pos)
 
-			-- Use a shorter distance threshold if the pet is blocked by a hazard
 			local actual_dist = dist
 			if self._follow_blocked_by_hazard then
 				actual_dist = 3

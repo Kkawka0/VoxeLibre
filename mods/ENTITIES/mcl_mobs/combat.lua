@@ -39,9 +39,6 @@ function mob_class:do_attack(object)
 	if self.state == "attack" or self.state == "die" or self.state == "runaway" or self.order == "sit" then
 		return
 	end
-	if not object or object == self.object then
-		return
-	end
 	if object:is_player() and not damage_enabled and not self.force_attack then
 		return
 	end
@@ -299,6 +296,9 @@ function mob_class:monster_attack()
 	if self.passive ~= false or self.state == "attack" or self:day_docile() or self.order == "sit" then
 		return
 	end
+	if not object or object == self.object then
+		return
+	end
 
 	local s = self.object:get_pos()
 	local p, dist
@@ -504,6 +504,7 @@ end
 
 -- deal damage and effects when mob punched
 function mob_class:on_punch(hitter, tflp, tool_capabilities, dir)
+	if not hitter then return end
 	local is_player = hitter:is_player()
 	local mob_pos = self.object:get_pos()
 	local player_pos = hitter:get_pos()
@@ -790,7 +791,7 @@ function mob_class:on_punch(hitter, tflp, tool_capabilities, dir)
 	if self.passive == false
 	and self.state ~= "flop"
 	and (self.child == false or self.type == "monster")
-	and name ~= self.owner
+	and (name == "" or name ~= self.owner)
 	and not mcl_mobs.invis[ name ] then
 		if not die then
 			-- attack whoever punched mob
@@ -828,7 +829,8 @@ function mob_class:on_punch(hitter, tflp, tool_capabilities, dir)
 				end
 
 				-- have owned mobs attack player threat
-				if obj.owner == name and obj.owner_loyal and obj.order ~= "sit" then
+				if obj.owner == name and obj.owner_loyal then
+					-- hardened guards: don't attack self or other pets of same owner
 					if obj.object ~= self.object and self.owner ~= name then
 						obj:do_attack(self.object)
 					end
@@ -923,10 +925,10 @@ minetest.register_on_punchplayer(function(player, hitter, time_from_last_punch, 
 	for _, obj in ipairs(objs) do
 		local ent = obj:get_luaentity()
 		if ent and ent.is_mob and ent.owner == name and ent.owner_loyal and ent.order ~= "sit" then
-			if actual_hitter and actual_hitter ~= obj:get_luaentity().object then
-				-- PR #13 guard: don't defend against another pet with the same owner
-				local hitter_le = actual_hitter.get_luaentity and actual_hitter:get_luaentity()
-				if not (hitter_le and hitter_le.owner == name) then
+			if actual_hitter and actual_hitter ~= obj then
+				-- don't defend against another pet with the same owner
+				local h_le = actual_hitter.get_luaentity and actual_hitter:get_luaentity()
+				if not (h_le and h_le.owner == name) then
 					ent:do_attack(actual_hitter)
 				end
 			end
