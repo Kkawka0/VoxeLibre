@@ -18,6 +18,8 @@ local plane_adjacents = {
 	vector.new(0,0,-1),
 }
 
+-- Creatura-inspired utilities for better path validation
+
 local LOGGING_ON = minetest.settings:get_bool("mcl_logging_mobs_pathfinding",false)
 local visualize = minetest.settings:get_bool("mcl_mobs_pathfinding_visualize",false)
 
@@ -198,6 +200,9 @@ function mob_class:gopath(target, callback_arrived, prioritised)
 
 	--Check direct route
 	local wp = minetest.find_path(p, t, PATHFINDING_SEARCH_DISTANCE, 1, 4)
+	if wp then
+		wp = self:simplify_path(wp)
+	end
 
 	if not wp then
 		mcl_log("### No direct path. Path through door closest to target.")
@@ -478,6 +483,24 @@ function mob_class:check_gowp(dtime)
 
 		self.current_target["failed_attempts"] = self.current_target["failed_attempts"] + 1
 		local failed_attempts = self.current_target["failed_attempts"]
+
+		-- Local replanning if stuck
+		if failed_attempts > 20 and failed_attempts % 20 == 0 then
+			mcl_log("Stuck at " .. minetest.pos_to_string(p) .. " trying to reach " .. minetest.pos_to_string(self.current_target.pos) .. ". Attempting local re-path.")
+			local lp = minetest.find_path(p, self.current_target.pos, 5, 1, 4)
+			if lp and #lp > 0 then
+				mcl_log("Local re-path found with " .. #lp .. " nodes.")
+				lp = self:simplify_path(lp)
+				local new_wps = generate_enriched_path(lp)
+				-- Prepend new waypoints to existing ones
+				for j = #new_wps, 1, -1 do
+					table.insert(self.waypoints, 1, new_wps[j])
+				end
+				self.current_target = table.remove(self.waypoints, 1)
+				return
+			end
+		end
+
 		if failed_attempts >= PATHFINDING_FAIL_THRESHOLD then
 			mcl_log("Failed to reach position " .. minetest.pos_to_string(self.current_target.pos) .. " too many times. At: "..minetest.pos_to_string(p).." Abandon route. Times tried: " .. failed_attempts .. " current distance "..distance_to_current_target)
 			self.state = "stand"
