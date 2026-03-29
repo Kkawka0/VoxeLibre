@@ -509,7 +509,7 @@ local function on_rightclick_double(side, names, d, double_textures) return func
 	core.show_formspec(clicker:get_player_name(),
 		sf("mcl_chests:%s_%s_%s_%s", d.canonical_basename, pos.x, pos.y, pos.z),
 		table.concat({
-			"formspec_version[6]",
+			"formspec_version[4]",
 			"size[11.75,14.15]",
 
 			"label[0.375,0.375;", F(C(mcl_formspec.label_color, name)), "]",
@@ -788,7 +788,7 @@ function mcl_chests.register_chest(basename, d)
 			core.show_formspec(clicker:get_player_name(),
 				sf("mcl_chests:%s_%s_%s_%s", d.canonical_basename, pos.x, pos.y, pos.z),
 				table.concat({
-					"formspec_version[6]",
+					"formspec_version[4]",
 					"size[11.75,10.425]",
 
 					"label[0.375,0.375;", F(C(mcl_formspec.label_color, name)), "]",

@@ -50,28 +50,6 @@ function mcl_inventory.update_inventory_formspec(player)
 	set_inventory(player)
 end
 
--- Helper to get inventory from location string
-local function get_inventory_from_location(location, player)
-	if location == "current_player" then
-		return player:get_inventory()
-	end
-	local inv_type, name = location:match("^(%a+):(.+)$")
-	if not inv_type then return nil end
-	if inv_type == "player" then
-		local target_player = minetest.get_player_by_name(name)
-		if target_player then
-			return target_player:get_inventory()
-		end
-	elseif inv_type == "node" then
-		local pos = minetest.string_to_pos(name)
-		if pos then
-			return minetest.get_inventory({type = "node", pos = pos}), pos
-		end
-	elseif inv_type == "detached" then
-		return minetest.get_inventory({type = "detached", name = name})
-	end
-end
-
 -- Hotbar swap logic (Minetest 5.8.0+)
 minetest.register_on_player_receive_fields(function(player, formname, fields)
 	local key = nil
@@ -83,79 +61,39 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		end
 	end
 
-	if not (key and key >= 1 and key <= 9 and fields.hovered_list and fields.hovered_index and fields.hovered_location) then
+	-- Limit the feature to the player’s own inventory and number keys 1-9
+	if not (key and key >= 1 and key <= 9 and (fields.hovered_location == "current_player" or
+		fields.hovered_location == "player:" .. player:get_player_name())) then
 		return
 	end
 
-	local hovered_inv, pos = get_inventory_from_location(fields.hovered_location, player)
-	if not hovered_inv then return end
+	-- Only allow swapping within the "main" inventory list
+	if fields.hovered_list ~= "main" then
+		return
+	end
 
-	local hovered_list = fields.hovered_list
 	local hovered_index = tonumber(fields.hovered_index) + 1
-	local player_inv = player:get_inventory()
-	local hotbar_index = key
-
-	-- Rule: If the hovered slot is already the same target hotbar slot, do nothing
-	if (fields.hovered_location == "current_player" or fields.hovered_location == "player:" .. player:get_player_name())
-			and hovered_list == "main" and hovered_index == hotbar_index then
+	-- Only allow swapping with items outside the hotbar (slots 10 to 36)
+	if hovered_index < 10 or hovered_index > 36 then
 		return
 	end
 
-	local hovered_stack = hovered_inv:get_stack(hovered_list, hovered_index)
+	local inv = player:get_inventory()
+	local hovered_stack = inv:get_stack("main", hovered_index)
+
 	-- Rule: If hovered slot is empty: do nothing
 	if hovered_stack:is_empty() then
 		return
 	end
 
-	-- Additional safety: Don't swap into restricted lists
-	if hovered_list == "craftresult" or hovered_list == "craftpreview" then
-		return
-	end
-
-	local hotbar_stack = player_inv:get_stack("main", hotbar_index)
-
-	-- Security check for nodes
-	if pos then
-		if minetest.is_protected(pos, player:get_player_name()) then
-			return
-		end
-		local node = minetest.get_node(pos)
-		local ndef = minetest.registered_nodes[node.name]
-		if ndef then
-			if ndef.allow_metadata_inventory_take then
-				if ndef.allow_metadata_inventory_take(pos, hovered_list, hovered_index, hovered_stack, player) < hovered_stack:get_count() then
-					return
-				end
-			end
-			if not hotbar_stack:is_empty() and ndef.allow_metadata_inventory_put then
-				if ndef.allow_metadata_inventory_put(pos, hovered_list, hovered_index, hotbar_stack, player) < hotbar_stack:get_count() then
-					return
-				end
-			end
-		end
-	end
+	local hotbar_index = key
+	local hotbar_stack = inv:get_stack("main", hotbar_index)
 
 	-- Perform the swap
-	hovered_inv:set_stack(hovered_list, hovered_index, hotbar_stack)
-	player_inv:set_stack("main", hotbar_index, hovered_stack)
+	inv:set_stack("main", hovered_index, hotbar_stack)
+	inv:set_stack("main", hotbar_index, hovered_stack)
 
-	-- Trigger on_* callbacks for nodes
-	if pos then
-		local node = minetest.get_node(pos)
-		local ndef = minetest.registered_nodes[node.name]
-		if ndef then
-			if ndef.on_metadata_inventory_take then
-				ndef.on_metadata_inventory_take(pos, hovered_list, hovered_index, hovered_stack, player)
-			end
-			if not hotbar_stack:is_empty() and ndef.on_metadata_inventory_put then
-				ndef.on_metadata_inventory_put(pos, hovered_list, hovered_index, hotbar_stack, player)
-			end
-		end
-	end
-
-	if fields.hovered_location == "current_player" or fields.hovered_location == "player:" .. player:get_player_name() then
-		mcl_inventory.update_inventory_formspec(player)
-	end
+	mcl_inventory.update_inventory_formspec(player)
 end)
 
 -- Drop crafting grid items on leaving

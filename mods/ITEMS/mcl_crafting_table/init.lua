@@ -8,7 +8,7 @@ local show_formspec = minetest.show_formspec
 mcl_crafting_table = {}
 
 mcl_crafting_table.formspec = table.concat({
-	"formspec_version[6]",
+	"formspec_version[4]",
 	"size[11.75,10.425]",
 
 	"label[2.25,0.375;" .. F(C(mcl_formspec.label_color, S("Crafting"))) .. "]",

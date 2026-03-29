@@ -52,7 +52,7 @@ local function formspec_shulker_box(name)
 	end
 
 	return table.concat({
-		"formspec_version[6]",
+		"formspec_version[4]",
 		"size[11.75,10.425]",
 
 		"label[0.375,0.375;", F(C(mcl_formspec.label_color, name)), "]",

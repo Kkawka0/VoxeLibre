@@ -134,7 +134,7 @@ local function build_stonecutter_formspec(player, items)
 	end
 
 	local formspec = table.concat({
-		"formspec_version[6]",
+		"formspec_version[4]",
 		"size[11.75,10.425]",
 		"label[0.375,0.375;" .. C(mcl_formspec.label_color, S("Stone Cutter")) .. "]",
 

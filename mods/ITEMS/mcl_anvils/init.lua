@@ -19,7 +19,7 @@ local function get_anvil_formspec(set_name)
 	end
 
 	return table.concat({
-		"formspec_version[6]",
+		"formspec_version[4]",
 		"size[11.75,10.425]",
 
 		"label[4.125,0.375;" .. F(C(mcl_formspec.label_color, S("Repair and Name"))) .. "]",
