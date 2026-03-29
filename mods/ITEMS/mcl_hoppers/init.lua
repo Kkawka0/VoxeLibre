@@ -14,7 +14,7 @@ mcl_hoppers = {}
 --[[ BEGIN OF NODE DEFINITIONS ]]
 
 local mcl_hoppers_formspec = table.concat({
-	"formspec_version[4]",
+	"formspec_version[6]",
 	"size[11.75,8.175]",
 
 	"label[0.375,0.375;" .. F(C(mcl_formspec.label_color, S("Hopper"))) .. "]",

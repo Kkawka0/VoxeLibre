@@ -12,7 +12,7 @@ mcl_furnaces = {}
 
 local function active_formspec(fuel_percent, item_percent)
 	return table.concat({
-		"formspec_version[4]",
+		"formspec_version[6]",
 		"size[11.75,10.425]",
 		"label[0.375,0.375;" .. F(C(mcl_formspec.label_color, S("Furnace"))) .. "]",
 		mcl_formspec.get_itemslot_bg_v4(3.5, 0.75, 1, 1),
@@ -51,7 +51,7 @@ local function active_formspec(fuel_percent, item_percent)
 end
 
 local inactive_formspec = table.concat({
-	"formspec_version[4]",
+	"formspec_version[6]",
 	"size[11.75,10.425]",
 	"label[0.375,0.375;" .. F(C(mcl_formspec.label_color, S("Furnace"))) .. "]",
 	mcl_formspec.get_itemslot_bg_v4(3.5, 0.75, 1, 1),

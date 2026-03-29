@@ -394,7 +394,7 @@ local function bookshelf_gui(pos, node, clicker)
 	minetest.show_formspec(playername,
 		"mcl_books:bookshelf_" .. pos.x .. "_" .. pos.y .. "_" .. pos.z,
 		table.concat({
-			"formspec_version[4]",
+			"formspec_version[6]",
 			"size[11.75,10.425]",
 
 			"label[0.375,0.375;" .. F(C(mcl_formspec.label_color, name)) .. "]",

@@ -505,7 +505,7 @@ function mcl_enchanting.show_enchanting_formspec(player)
 	local table_name = meta:get_string("mcl_enchanting:table_name")
 
 	local formspec = table.concat({
-		"formspec_version[4]",
+		"formspec_version[6]",
 		"size[11.75,10.425]",
 
 		"label[0.375,0.375;" .. F(C(mcl_formspec.label_color) .. table_name) .. "]",
