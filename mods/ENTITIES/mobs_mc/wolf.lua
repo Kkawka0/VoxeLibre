@@ -175,7 +175,7 @@ dog.owner_loyal = true
 dog.follow_velocity = 3.2
 dog.run_velocity = dog.follow_velocity
 -- Automatically teleport dog to owner
-local dog_teleport = mobs_mc.make_owner_teleport_function(24)
+local dog_teleport = mobs_mc.make_owner_teleport_function(48)
 dog.do_custom = function(self, dtime)
 	update_tail(self)
 	return dog_teleport(self, dtime)
