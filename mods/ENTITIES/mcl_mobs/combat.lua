@@ -36,6 +36,9 @@ end
 
 -- get this mob to attack the object
 function mob_class:do_attack(object)
+	if not object or object == self.object then
+		return
+	end
 	if self.state == "attack" or self.state == "die" or self.state == "runaway" then
 		return
 	end
@@ -816,7 +819,7 @@ function mob_class:on_punch(hitter, tflp, tool_capabilities, dir)
 				end
 
 				-- have owned mobs attack player threat
-				if obj.owner == name and obj.owner_loyal then
+				if obj.owner == name and obj.owner_loyal and obj.object ~= self.object and self.owner ~= name then
 					obj:do_attack(self.object)
 				end
 			end
