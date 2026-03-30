@@ -3,6 +3,7 @@ local mob_class = mcl_mobs.mob_class
 
 local PATHFINDING_FAIL_THRESHOLD = 200 -- no. of ticks to fail before giving up. 20p/s. 5s helps them get through door
 local PATHFINDING_FAIL_WAIT = 30 -- how long to wait before trying to path again
+local FOLLOW_PATHFINDING_FAIL_WAIT = 2 -- how long to wait before trying to path again in follow mode
 local PATHING_START_DELAY = 4 -- When doing non-prioritised pathing, how long to wait until last mob pathed
 
 local PATHFINDING_SEARCH_DISTANCE = 25 -- How big the square is that pathfinding will look
@@ -98,8 +99,13 @@ local last_pathing_time = os.time()
 
 function mob_class:ready_to_path(prioritised, is_follow)
 	-- mcl_log("Check ready to path")
-	-- Followers are always prioritised and ignore failure cooldowns
-	if is_follow then return true end
+	-- Followers use a shorter failure cooldown and are always prioritised
+	if is_follow then
+		if self._pf_follow_last_failed and (os.time() - self._pf_follow_last_failed) < FOLLOW_PATHFINDING_FAIL_WAIT then
+			return false
+		end
+		return true
+	end
 
 	if self._pf_last_failed and (os.time() - self._pf_last_failed) < PATHFINDING_FAIL_WAIT then
 		-- mcl_log("Not ready to path as last fail is less than threshold: " .. (os.time() - self._pf_last_failed))
@@ -260,7 +266,9 @@ function mob_class:gopath(target, callback_arrived, prioritised, is_follow)
 
 	if not wp then
 		mcl_log("Could not calculate path")
-		if not is_follow then
+		if is_follow then
+			self._pf_follow_last_failed = os.time()
+		else
 			self._pf_last_failed = os.time()
 		end
 		-- If cannot path, don't immediately try again
@@ -512,7 +520,9 @@ function mob_class:check_gowp(dtime)
 			self.current_target = nil
 			self.waypoints = nil
 			self._target = nil
-			if not self._is_follow_path then
+			if self._is_follow_path then
+				self._pf_follow_last_failed = os.time()
+			else
 				self._pf_last_failed = os.time()
 			end
 			self._is_follow_path = nil
