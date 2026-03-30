@@ -469,12 +469,6 @@ function mob_class:check_gowp(dtime)
 
 		local hurry = (self.order == "sleep" or #self.waypoints > 15) and self.run_velocity or self.walk_velocity
 		self.current_target = table.remove(self.waypoints, 1)
-		-- use smoothing -- TODO: check for blockers before cutting corners?
-		if #self.waypoints > 0 and not self.current_target["action"] then
-			local curwp, nextwp = self.current_target.pos, self.waypoints[1].pos
-			self:go_to_pos(vector.new(curwp.x*0.7+nextwp.x*0.3,curwp.y,curwp.z*0.7+nextwp.z*0.3), hurry)
-			return
-		end
 		self:go_to_pos(self.current_target.pos, hurry)
 		--if self.current_target["action"] then self:set_velocity(self.walk_velocity * 0.5) end
 		return

@@ -139,14 +139,23 @@ function mob_class:get_context(goal, steer_dir, interest, danger, range)
 	local width = cbox[4]
 	local height = cbox[5] - cbox[2]
 
-	local check_pos = vector.add(pos, vector.multiply(steer_dir, width + range))
-	local collision = self:is_blocked(check_pos, width, height)
+	-- Segment-based danger detection
+	local steps = math.ceil(range)
+	local hit = false
+	for i = 1, steps do
+		local check_pos = vector.add(pos, vector.multiply(steer_dir, width + i))
+		if self:is_blocked(check_pos, width, height) then
+			hit = true
+			-- Danger score based on proximity
+			danger = math.max(danger, (range - i + 1) / range)
+			break
+		end
+	end
 
-	if collision then
+	if hit then
 		local dir2goal = vector.direction(pos, goal)
 		local dot_score = vector.dot(steer_dir, dir2goal)
 		interest = interest - dot_score
-		danger = 1.0 -- Simplified danger for now
 	end
 	return interest, danger
 end
@@ -678,9 +687,13 @@ function mob_class:check_follow()
 				-- anyone but standing npc's can move along
 				local dist = vector_distance(p, s)
 				if dist > 3 and self.order ~= "stand" then
-					self:set_velocity(self.follow_velocity)
-					if self.walk_chance ~= 0 then
-						self:set_animation("run")
+					-- Use pathfinding for long distance or if blocked
+					if (dist > 6 or not self:get_line_of_sight(s, p, self.initial_properties.collisionbox[4], self.initial_properties.collisionbox[5]-self.initial_properties.collisionbox[2])) and self.gopath then
+						if self.state ~= PATHFINDING then
+							self:gopath(p)
+						end
+					else
+						self:go_to_pos(p, self.follow_velocity)
 					end
 				else
 					self:set_velocity(0)

@@ -146,6 +146,9 @@ function mob_class:smart_mobs(s, p, dist, dtime)
 			jumpheight = 1
 		end
 		self.path.way = minetest.find_path(s, p1, 16, jumpheight, dropheight, "A*_noprefetch")
+		if self.path.way then
+			self.path.way = self:simplify_path(self.path.way)
+		end
 
 		self.state = ""
 		self:do_attack(self.attack)
@@ -1077,16 +1080,8 @@ function mob_class:do_states_attack(dtime)
 				self:set_animation("stand")
 				--self:turn_by(PI * (random() - 0.5), 10)
 			else
-				if self.path.stuck then
-					self:set_velocity(self.walk_velocity)
-				else
-					self:set_velocity(self.run_velocity)
-				end
-				if self.animation and self.animation.run_start then
-					self:set_animation("run")
-				else
-					self:set_animation("walk")
-				end
+				local velocity = self.path.stuck and self.walk_velocity or self.run_velocity
+				self:go_to_pos(p, velocity)
 			end
 		elseif target_line_of_sight and actual_dist <= self.reach then
 			-- rnd: if inside reach range and visible
