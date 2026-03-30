@@ -512,7 +512,10 @@ function mob_class:check_gowp(dtime)
 			self.current_target = nil
 			self.waypoints = nil
 			self._target = nil
-			self._pf_last_failed = os.time()
+			if not self._is_follow_path then
+				self._pf_last_failed = os.time()
+			end
+			self._is_follow_path = nil
 			self.object:set_velocity(vector.zero())
 			self.object:set_acceleration(vector.zero())
 			return

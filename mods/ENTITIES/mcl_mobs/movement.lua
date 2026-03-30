@@ -139,17 +139,29 @@ function mob_class:get_context(goal, steer_dir, interest, danger, range)
 	local width = cbox[4]
 	local height = cbox[5] - cbox[2]
 
-	-- Segment-based danger detection
+	-- Segment-based danger detection with multi-sampling (center, left, right)
 	local steps = math.ceil(range)
 	local hit = false
+	local left_offset = {x = -steer_dir.z * width, y = 0, z = steer_dir.x * width}
+	local right_offset = {x = steer_dir.z * width, y = 0, z = -steer_dir.x * width}
+
 	for i = 1, steps do
-		local check_pos = vector.add(pos, vector.multiply(steer_dir, width + i))
-		if self:is_blocked(check_pos, width, height) then
-			hit = true
-			-- Danger score based on proximity
-			danger = math.max(danger, (range - i + 1) / range)
-			break
+		local dist = width + i
+		local check_points = {
+			vector.add(pos, vector.multiply(steer_dir, dist)), -- center
+			vector.add(vector.add(pos, left_offset), vector.multiply(steer_dir, dist)), -- left
+			vector.add(vector.add(pos, right_offset), vector.multiply(steer_dir, dist)) -- right
+		}
+
+		for _, check_pos in ipairs(check_points) do
+			if self:is_blocked(check_pos, width, height) then
+				hit = true
+				-- Danger score based on proximity
+				danger = math.max(danger, (range - i + 1) / range)
+				break
+			end
 		end
+		if hit then break end
 	end
 
 	if hit then
@@ -691,7 +703,7 @@ function mob_class:check_follow(dtime)
 					if (dist > 6 or not self:get_line_of_sight(s, p, self.initial_properties.collisionbox[4], self.initial_properties.collisionbox[5]-self.initial_properties.collisionbox[2])) and self.gopath then
 						-- For followers, we allow re-pathing even if already pathfinding to handle owner movement
 						if self.state ~= PATHFINDING or mcl_util.check_dtime_timer(self, dtime or 0.1, "repath_follow", 2.0) then
-							self:gopath(p, nil, nil, true)
+							self:gopath(p, nil, true, true)
 						end
 					else
 						self:go_to_pos(p, self.follow_velocity)
