@@ -36,11 +36,11 @@ local steer_directions = {
 	vector.normalize({x = 1, y = 0, z = 0}),
 	vector.normalize({x = 1, y = 0, z = 1}),
 	vector.normalize({x = 0, y = 0, z = 1}),
+	vector.normalize({x = -1, y = 0, z = 1}),
 	vector.normalize({x = -1, y = 0, z = 0}),
 	vector.normalize({x = -1, y = 0, z = -1}),
 	vector.normalize({x = 0, y = 0, z = -1}),
-	vector.normalize({x = 1, y = 0, z = -1}),
-	vector.normalize({x = -1, y = 0, z = 1})
+	vector.normalize({x = 1, y = 0, z = -1})
 }
 
 local function get_node_def(name)
@@ -620,7 +620,7 @@ end
 
 
 -- follow player if owner or holding item
-function mob_class:check_follow()
+function mob_class:check_follow(dtime)
 	-- find player to follow
 	if not self.following
 	and self.state ~= "attack"
@@ -689,8 +689,9 @@ function mob_class:check_follow()
 				if dist > 3 and self.order ~= "stand" then
 					-- Use pathfinding for long distance or if blocked
 					if (dist > 6 or not self:get_line_of_sight(s, p, self.initial_properties.collisionbox[4], self.initial_properties.collisionbox[5]-self.initial_properties.collisionbox[2])) and self.gopath then
-						if self.state ~= PATHFINDING then
-							self:gopath(p)
+						-- For followers, we allow re-pathing even if already pathfinding to handle owner movement
+						if self.state ~= PATHFINDING or mcl_util.check_dtime_timer(self, dtime or 0.1, "repath_follow", 2.0) then
+							self:gopath(p, nil, nil, true)
 						end
 					else
 						self:go_to_pos(p, self.follow_velocity)

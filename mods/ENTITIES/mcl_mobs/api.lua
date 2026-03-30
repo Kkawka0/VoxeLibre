@@ -399,7 +399,7 @@ local function on_step_work(self, dtime, moveresult)
 		self:check_head_swivel(dtime)
 
 		if mcl_util.check_dtime_timer(self, dtime, "onstep_engage", 0.2) then
-			self:check_follow()
+			self:check_follow(dtime)
 			self:check_runaway_from()
 			self:monster_attack()
 			self:npc_attack()

@@ -18,8 +18,6 @@ local plane_adjacents = {
 	vector.new(0,0,-1),
 }
 
--- Creatura-inspired utilities for better path validation
-
 local LOGGING_ON = minetest.settings:get_bool("mcl_logging_mobs_pathfinding",false)
 local visualize = minetest.settings:get_bool("mcl_mobs_pathfinding_visualize",false)
 
@@ -176,13 +174,15 @@ local function find_open_node(pos, radius)
 	return nil
 end
 
-function mob_class:gopath(target, callback_arrived, prioritised)
-	if self.state == PATHFINDING then mcl_log("Already pathfinding, don't set another until done.") return end
+function mob_class:gopath(target, callback_arrived, prioritised, is_follow)
+	if self.state == PATHFINDING and not is_follow then mcl_log("Already pathfinding, don't set another until done.") return end
 	if not self:ready_to_path(prioritised) then return end
 
 	last_pathing_time = os.time()
 
-	self.order = nil
+	if not is_follow then
+		self.order = nil
+	end
 
 	-- maybe feet are buried in solid?
 	local start = self.object:get_pos()
@@ -330,6 +330,7 @@ function mob_class:gopath(target, callback_arrived, prioritised)
 		--output_table(wp)
 		self._target = t
 		self.callback_arrived = callback_arrived
+		self._is_follow_path = is_follow
 		self.current_target = table.remove(wp,1)
 		while self.current_target and self.current_target.pos and vector.distance(p, self.current_target.pos) < 0.5 do
 			--mcl_log("Skipping close initial waypoint")
@@ -420,11 +421,15 @@ function mob_class:check_gowp(dtime)
 	--mcl_log("Distance to targ: ".. tostring(distance_to_targ))
 	if distance_to_targ < 1.8 then
 		mcl_log("Arrived at _target")
+		local was_follow = self._is_follow_path
 		self.waypoints = nil
 		self._target = nil
 		self.current_target = nil
+		self._is_follow_path = nil
 		self.state = "stand"
-		self.order = "stand"
+		if not was_follow then
+			self.order = "stand"
+		end
 		self.object:set_velocity(vector.zero())
 		self.object:set_acceleration(vector.zero())
 		if self.callback_arrived then return self.callback_arrived(self) end
