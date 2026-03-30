@@ -30,6 +30,183 @@ local vector_offset = vector.offset
 local vector_distance = vector.distance
 local raycast_line_of_sight = mcl_mobs.check_line_of_sight
 
+-- Context Based Steering Utilities
+
+local steer_directions = {
+	vector.normalize({x = 1, y = 0, z = 0}),
+	vector.normalize({x = 1, y = 0, z = 1}),
+	vector.normalize({x = 0, y = 0, z = 1}),
+	vector.normalize({x = -1, y = 0, z = 1}),
+	vector.normalize({x = -1, y = 0, z = 0}),
+	vector.normalize({x = -1, y = 0, z = -1}),
+	vector.normalize({x = 0, y = 0, z = -1}),
+	vector.normalize({x = 1, y = 0, z = -1})
+}
+
+local function get_node_def(name)
+	return minetest.registered_nodes[name] or {walkable = true}
+end
+
+function mob_class:is_blocked(pos, width, height)
+	local p1 = {
+		x = math.floor(pos.x - width + 0.5),
+		y = math.floor(pos.y + 0.5),
+		z = math.floor(pos.z - width + 0.5),
+	}
+	local p2 = {
+		x = math.floor(pos.x + width + 0.5),
+		y = math.floor(pos.y + height + 0.5),
+		z = math.floor(pos.z + width + 0.5),
+	}
+
+	for z = p1.z, p2.z do
+		for y = p1.y, p2.y do
+			for x = p1.x, p2.x do
+				local node_pos = {x = x, y = y, z = z}
+				local node = minetest.get_node(node_pos)
+				local ndef = get_node_def(node.name)
+				if ndef.walkable then
+					return true
+				end
+				-- Hazard checks
+				if self:is_node_dangerous(node.name) or self:is_node_waterhazard(node.name) then
+					return true
+				end
+				-- Cliff check
+				if y == p1.y then
+					local node_below = minetest.get_node({x = x, y = y - 1, z = z})
+					if not get_node_def(node_below.name).walkable then
+						if self.fear_height and self.fear_height > 0 then
+							local free_fall = minetest.line_of_sight(
+								{x = x, y = y, z = z},
+								{x = x, y = y - self.fear_height - 1, z = z}
+							)
+							if free_fall then return true end
+						end
+					end
+				end
+			end
+		end
+	end
+	return false
+end
+
+function mob_class:get_line_of_sight(a, b, width, height)
+	local dist = vector.distance(a, b)
+	local steps = math.floor(dist)
+	local dir = vector.direction(a, b)
+
+	for i = 0, steps do
+		local pos = vector.add(a, vector.multiply(dir, i))
+		if self:is_blocked(pos, width, height) then
+			return false
+		end
+	end
+	-- Final check at b
+	if self:is_blocked(b, width, height) then
+		return false
+	end
+	return true
+end
+
+function mob_class:simplify_path(wp)
+	if not wp or #wp < 3 then return wp end
+	local simplified = {}
+	local curr = 1
+	table.insert(simplified, wp[1])
+
+	local width = (self.initial_properties.collisionbox[4] or 0.5)
+	local height = (self.initial_properties.collisionbox[5] or 1) - (self.initial_properties.collisionbox[2] or 0)
+
+	while curr < #wp do
+		local next_node = curr + 1
+		for j = #wp, curr + 2, -1 do
+			if self:get_line_of_sight(wp[curr], wp[j], width, height) then
+				next_node = j
+				break
+			end
+		end
+		table.insert(simplified, wp[next_node])
+		curr = next_node
+	end
+	return simplified
+end
+
+function mob_class:get_context(goal, steer_dir, interest, danger, range)
+	local pos = self.object:get_pos()
+	if not pos then return interest, danger end
+	local cbox = self.initial_properties.collisionbox
+	local width = cbox[4]
+	local height = cbox[5] - cbox[2]
+
+	-- Segment-based danger detection with multi-sampling (center, left, right)
+	local steps = math.ceil(range)
+	local hit = false
+	local left_offset = {x = -steer_dir.z * width, y = 0, z = steer_dir.x * width}
+	local right_offset = {x = steer_dir.z * width, y = 0, z = -steer_dir.x * width}
+
+	for i = 1, steps do
+		local dist = width + i
+		local check_points = {
+			vector.add(pos, vector.multiply(steer_dir, dist)), -- center
+			vector.add(vector.add(pos, left_offset), vector.multiply(steer_dir, dist)), -- left
+			vector.add(vector.add(pos, right_offset), vector.multiply(steer_dir, dist)) -- right
+		}
+
+		for _, check_pos in ipairs(check_points) do
+			if self:is_blocked(check_pos, width, height) then
+				hit = true
+				-- Danger score based on proximity
+				danger = math.max(danger, (range - i + 1) / range)
+				break
+			end
+		end
+		if hit then break end
+	end
+
+	if hit then
+		local dir2goal = vector.direction(pos, goal)
+		local dot_score = vector.dot(steer_dir, dir2goal)
+		interest = interest - dot_score
+	end
+	return interest, danger
+end
+
+function mob_class:calc_steering(goal, range)
+	if not goal then return end
+	local pos = self.object:get_pos()
+	if not pos then return end
+	range = range or 1.5
+	local dir2goal = vector.direction(pos, goal)
+	local output_dir = {x = 0, y = 0, z = 0}
+
+	for _, dir in ipairs(steer_directions) do
+		local score = vector.dot(dir2goal, dir)
+		local interest = math.max(score, 0)
+		local danger = 0
+		if interest > 0 then
+			interest, danger = self:get_context(goal, dir, interest, danger, range)
+		end
+		score = interest - danger
+		output_dir = vector.add(output_dir, vector.multiply(dir, score))
+	end
+
+	if vector.length(output_dir) < 0.01 then
+		-- Fallback: find the direction with the least danger
+		local best_dir = dir2goal
+		local min_danger = 1.1
+		for _, dir in ipairs(steer_directions) do
+			local _, danger = self:get_context(goal, dir, 0, 0, range)
+			if danger < min_danger then
+				min_danger = danger
+				best_dir = dir
+			end
+		end
+		return best_dir
+	end
+	return vector.normalize(output_dir)
+end
+
 local registered_fallback_node = minetest.registered_nodes[mcl_mobs.fallback_node]
 
 -- Stop movement and stand
@@ -455,7 +632,7 @@ end
 
 
 -- follow player if owner or holding item
-function mob_class:check_follow()
+function mob_class:check_follow(dtime)
 	-- find player to follow
 	if not self.following
 	and self.state ~= "attack"
@@ -522,9 +699,14 @@ function mob_class:check_follow()
 				-- anyone but standing npc's can move along
 				local dist = vector_distance(p, s)
 				if dist > 3 and self.order ~= "stand" then
-					self:set_velocity(self.follow_velocity)
-					if self.walk_chance ~= 0 then
-						self:set_animation("run")
+					-- Use pathfinding for long distance or if blocked
+					if (dist > 6 or not self:get_line_of_sight(s, p, self.initial_properties.collisionbox[4], self.initial_properties.collisionbox[5]-self.initial_properties.collisionbox[2])) and self.gopath then
+						-- For followers, we allow re-pathing even if already pathfinding to handle owner movement
+						if self.state ~= PATHFINDING or mcl_util.check_dtime_timer(self, dtime or 0.1, "repath_follow", 2.0) then
+							self:gopath(p, nil, true, true)
+						end
+					else
+						self:go_to_pos(p, self.follow_velocity)
 					end
 				else
 					self:set_velocity(0)
@@ -569,9 +751,17 @@ function mob_class:go_to_pos(b, speed)
 	if not self then return end
 	if not b then return end
 	local s = self.object:get_pos()
+	if not s then return end
 	if vector_distance(b,s) < .4 then return true end
 	if b.y > s.y + 0.2 then self:do_jump() end
-	self:turn_in_direction(b.x - s.x, b.z - s.z, 2)
+
+	local steer_dir = self:calc_steering(b)
+	if steer_dir then
+		self:turn_in_direction(steer_dir.x, steer_dir.z, 2)
+	else
+		self:turn_in_direction(b.x - s.x, b.z - s.z, 2)
+	end
+
 	speed = speed or self.walk_velocity
 	self:set_velocity(speed)
 	self:set_animation(speed <= self.walk_velocity and "walk" or "run")

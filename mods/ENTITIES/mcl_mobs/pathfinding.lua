@@ -3,6 +3,7 @@ local mob_class = mcl_mobs.mob_class
 
 local PATHFINDING_FAIL_THRESHOLD = 200 -- no. of ticks to fail before giving up. 20p/s. 5s helps them get through door
 local PATHFINDING_FAIL_WAIT = 30 -- how long to wait before trying to path again
+local FOLLOW_PATHFINDING_FAIL_WAIT = 2 -- how long to wait before trying to path again in follow mode
 local PATHING_START_DELAY = 4 -- When doing non-prioritised pathing, how long to wait until last mob pathed
 
 local PATHFINDING_SEARCH_DISTANCE = 25 -- How big the square is that pathfinding will look
@@ -96,8 +97,16 @@ end
 
 local last_pathing_time = os.time()
 
-function mob_class:ready_to_path(prioritised)
+function mob_class:ready_to_path(prioritised, is_follow)
 	-- mcl_log("Check ready to path")
+	-- Followers use a shorter failure cooldown and are always prioritised
+	if is_follow then
+		if self._pf_follow_last_failed and (os.time() - self._pf_follow_last_failed) < FOLLOW_PATHFINDING_FAIL_WAIT then
+			return false
+		end
+		return true
+	end
+
 	if self._pf_last_failed and (os.time() - self._pf_last_failed) < PATHFINDING_FAIL_WAIT then
 		-- mcl_log("Not ready to path as last fail is less than threshold: " .. (os.time() - self._pf_last_failed))
 		return false
@@ -174,13 +183,15 @@ local function find_open_node(pos, radius)
 	return nil
 end
 
-function mob_class:gopath(target, callback_arrived, prioritised)
-	if self.state == PATHFINDING then mcl_log("Already pathfinding, don't set another until done.") return end
-	if not self:ready_to_path(prioritised) then return end
+function mob_class:gopath(target, callback_arrived, prioritised, is_follow)
+	if self.state == PATHFINDING and not is_follow then mcl_log("Already pathfinding, don't set another until done.") return end
+	if not self:ready_to_path(prioritised, is_follow) then return end
 
 	last_pathing_time = os.time()
 
-	self.order = nil
+	if not is_follow then
+		self.order = nil
+	end
 
 	-- maybe feet are buried in solid?
 	local start = self.object:get_pos()
@@ -198,6 +209,9 @@ function mob_class:gopath(target, callback_arrived, prioritised)
 
 	--Check direct route
 	local wp = minetest.find_path(p, t, PATHFINDING_SEARCH_DISTANCE, 1, 4)
+	if wp then
+		wp = self:simplify_path(wp)
+	end
 
 	if not wp then
 		mcl_log("### No direct path. Path through door closest to target.")
@@ -252,7 +266,11 @@ function mob_class:gopath(target, callback_arrived, prioritised)
 
 	if not wp then
 		mcl_log("Could not calculate path")
-		self._pf_last_failed = os.time()
+		if is_follow then
+			self._pf_follow_last_failed = os.time()
+		else
+			self._pf_last_failed = os.time()
+		end
 		-- If cannot path, don't immediately try again
 	end
 
@@ -325,6 +343,7 @@ function mob_class:gopath(target, callback_arrived, prioritised)
 		--output_table(wp)
 		self._target = t
 		self.callback_arrived = callback_arrived
+		self._is_follow_path = is_follow
 		self.current_target = table.remove(wp,1)
 		while self.current_target and self.current_target.pos and vector.distance(p, self.current_target.pos) < 0.5 do
 			--mcl_log("Skipping close initial waypoint")
@@ -415,11 +434,15 @@ function mob_class:check_gowp(dtime)
 	--mcl_log("Distance to targ: ".. tostring(distance_to_targ))
 	if distance_to_targ < 1.8 then
 		mcl_log("Arrived at _target")
+		local was_follow = self._is_follow_path
 		self.waypoints = nil
 		self._target = nil
 		self.current_target = nil
+		self._is_follow_path = nil
 		self.state = "stand"
-		self.order = "stand"
+		if not was_follow then
+			self.order = "stand"
+		end
 		self.object:set_velocity(vector.zero())
 		self.object:set_acceleration(vector.zero())
 		if self.callback_arrived then return self.callback_arrived(self) end
@@ -464,12 +487,6 @@ function mob_class:check_gowp(dtime)
 
 		local hurry = (self.order == "sleep" or #self.waypoints > 15) and self.run_velocity or self.walk_velocity
 		self.current_target = table.remove(self.waypoints, 1)
-		-- use smoothing -- TODO: check for blockers before cutting corners?
-		if #self.waypoints > 0 and not self.current_target["action"] then
-			local curwp, nextwp = self.current_target.pos, self.waypoints[1].pos
-			self:go_to_pos(vector.new(curwp.x*0.7+nextwp.x*0.3,curwp.y,curwp.z*0.7+nextwp.z*0.3), hurry)
-			return
-		end
 		self:go_to_pos(self.current_target.pos, hurry)
 		--if self.current_target["action"] then self:set_velocity(self.walk_velocity * 0.5) end
 		return
@@ -478,13 +495,37 @@ function mob_class:check_gowp(dtime)
 
 		self.current_target["failed_attempts"] = self.current_target["failed_attempts"] + 1
 		local failed_attempts = self.current_target["failed_attempts"]
+
+		-- Local replanning if stuck
+		if failed_attempts > 20 and failed_attempts % 20 == 0 then
+			mcl_log("Stuck at " .. minetest.pos_to_string(p) .. " trying to reach " .. minetest.pos_to_string(self.current_target.pos) .. ". Attempting local re-path.")
+			local lp = minetest.find_path(p, self.current_target.pos, 5, 1, 4)
+			if lp and #lp > 0 then
+				mcl_log("Local re-path found with " .. #lp .. " nodes.")
+				lp = self:simplify_path(lp)
+				local new_wps = generate_enriched_path(lp)
+				-- Prepend new waypoints to existing ones
+				self.waypoints = self.waypoints or {}
+				for j = #new_wps, 1, -1 do
+					table.insert(self.waypoints, 1, new_wps[j])
+				end
+				self.current_target = table.remove(self.waypoints, 1)
+				return
+			end
+		end
+
 		if failed_attempts >= PATHFINDING_FAIL_THRESHOLD then
 			mcl_log("Failed to reach position " .. minetest.pos_to_string(self.current_target.pos) .. " too many times. At: "..minetest.pos_to_string(p).." Abandon route. Times tried: " .. failed_attempts .. " current distance "..distance_to_current_target)
 			self.state = "stand"
 			self.current_target = nil
 			self.waypoints = nil
 			self._target = nil
-			self._pf_last_failed = os.time()
+			if self._is_follow_path then
+				self._pf_follow_last_failed = os.time()
+			else
+				self._pf_last_failed = os.time()
+			end
+			self._is_follow_path = nil
 			self.object:set_velocity(vector.zero())
 			self.object:set_acceleration(vector.zero())
 			return
