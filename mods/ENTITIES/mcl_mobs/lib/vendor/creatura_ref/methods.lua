@@ -673,5 +673,3 @@ creatura.register_movement_method("creatura:obstacle_avoidance", function(self)
 	end
 	return func
 end)
-
-

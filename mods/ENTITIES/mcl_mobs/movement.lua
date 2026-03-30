@@ -171,7 +171,17 @@ function mob_class:calc_steering(goal, range)
 	end
 
 	if vector.length(output_dir) < 0.01 then
-		return dir2goal
+		-- Fallback: find the direction with the least danger
+		local best_dir = dir2goal
+		local min_danger = 1.1
+		for _, dir in ipairs(steer_directions) do
+			local _, danger = self:get_context(goal, dir, 0, 0, range)
+			if danger < min_danger then
+				min_danger = danger
+				best_dir = dir
+			end
+		end
+		return best_dir
 	end
 	return vector.normalize(output_dir)
 end

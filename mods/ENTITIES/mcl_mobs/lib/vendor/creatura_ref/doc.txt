@@ -178,7 +178,7 @@ Environment access
 	* Finds distance to ground from bottom of entities hitbox
 	* Returns distance to ground or `range` if no ground is found
 	* `range`: Maximum range
-	* `water`: If false, water will not be counted as ground 
+	* `water`: If false, water will not be counted as ground
 
 * `creatura.sensor_ceil(self, range, water)`
 	* Finds distance to ceiling from top of entities hitbox
@@ -231,7 +231,7 @@ Both pathfinders will carry out pathfinding over multiple server steps to reduce
 being returned immediately, so your code will have to account for this.
 
 The maximum amount of time the pathfinder can spend per-step (in microseconds) can be adjusted in settings.
-	
+
 
 * `creatura.pathfinder.find_path(self, pos1, pos2, get_neighbors)`
 	* Finds a path from `pos1` to `pos2`

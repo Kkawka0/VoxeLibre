@@ -493,6 +493,7 @@ function mob_class:check_gowp(dtime)
 				lp = self:simplify_path(lp)
 				local new_wps = generate_enriched_path(lp)
 				-- Prepend new waypoints to existing ones
+				self.waypoints = self.waypoints or {}
 				for j = #new_wps, 1, -1 do
 					table.insert(self.waypoints, 1, new_wps[j])
 				end

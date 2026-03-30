@@ -1,4 +1,4 @@
-# How mobs step up nodes. 
+# How mobs step up nodes.
 #
 # - Simple means mobs use Minetests builtin stepping.
 # - Fancy means mobs will step up nodes with a quick hop but can cause lag.

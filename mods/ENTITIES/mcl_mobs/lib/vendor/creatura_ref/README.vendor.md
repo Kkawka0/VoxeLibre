@@ -26,7 +26,7 @@ Do not add `dofile(...)` or any other direct integration from this folder unless
 
 
 
-Source project: `ElCeejo/creatura`  
+Source project: `ElCeejo/creatura`
 
 Vendored from upstream for offline inspection and adaptation.
 
@@ -65,4 +65,3 @@ The goal is to improve VoxeLibre's existing `mcl\_mobs` navigation, not to repla
 \- If any code is copied/adapted into VoxeLibre, document that in the relevant commit/PR.
 
 \- Preserve the upstream license file included in this directory.
-
