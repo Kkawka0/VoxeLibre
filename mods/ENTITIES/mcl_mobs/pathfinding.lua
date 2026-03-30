@@ -96,8 +96,11 @@ end
 
 local last_pathing_time = os.time()
 
-function mob_class:ready_to_path(prioritised)
+function mob_class:ready_to_path(prioritised, is_follow)
 	-- mcl_log("Check ready to path")
+	-- Followers are always prioritised and ignore failure cooldowns
+	if is_follow then return true end
+
 	if self._pf_last_failed and (os.time() - self._pf_last_failed) < PATHFINDING_FAIL_WAIT then
 		-- mcl_log("Not ready to path as last fail is less than threshold: " .. (os.time() - self._pf_last_failed))
 		return false
@@ -176,7 +179,7 @@ end
 
 function mob_class:gopath(target, callback_arrived, prioritised, is_follow)
 	if self.state == PATHFINDING and not is_follow then mcl_log("Already pathfinding, don't set another until done.") return end
-	if not self:ready_to_path(prioritised) then return end
+	if not self:ready_to_path(prioritised, is_follow) then return end
 
 	last_pathing_time = os.time()
 
@@ -257,7 +260,9 @@ function mob_class:gopath(target, callback_arrived, prioritised, is_follow)
 
 	if not wp then
 		mcl_log("Could not calculate path")
-		self._pf_last_failed = os.time()
+		if not is_follow then
+			self._pf_last_failed = os.time()
+		end
 		-- If cannot path, don't immediately try again
 	end
 
